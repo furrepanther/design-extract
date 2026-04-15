@@ -9,6 +9,7 @@ import { extractBreakpoints } from './extractors/breakpoints.js';
 import { extractAnimations } from './extractors/animations.js';
 import { extractComponents } from './extractors/components.js';
 import { extractAccessibility } from './extractors/accessibility.js';
+import { extractLayout } from './extractors/layout.js';
 
 export async function extractDesignLanguage(url, options = {}) {
   const rawData = await crawlPage(url, options);
@@ -32,6 +33,7 @@ export async function extractDesignLanguage(url, options = {}) {
     animations: extractAnimations(styles, rawData.light.keyframes),
     components: extractComponents(styles),
     accessibility: extractAccessibility(styles),
+    layout: extractLayout(styles),
     componentScreenshots: rawData.componentScreenshots || {},
   };
 
@@ -55,3 +57,7 @@ export { formatFigma } from './formatters/figma.js';
 export { formatReactTheme, formatShadcnTheme } from './formatters/theme.js';
 export { diffDesigns, formatDiffMarkdown, formatDiffHtml } from './diff.js';
 export { saveSnapshot, getHistory, formatHistoryMarkdown } from './history.js';
+export { captureResponsive } from './extractors/responsive.js';
+export { captureInteractions } from './extractors/interactions.js';
+export { syncDesign } from './sync.js';
+export { compareBrands, formatBrandMatrix, formatBrandMatrixHtml } from './multibrand.js';

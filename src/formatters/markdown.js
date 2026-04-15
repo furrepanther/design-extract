@@ -259,6 +259,153 @@ export function formatMarkdown(design) {
     }
   }
 
+  // ── Layout ──
+  if (design.layout) {
+    const l = design.layout;
+    lines.push('## Layout System');
+    lines.push('');
+    lines.push(`**${l.gridCount} grid containers** and **${l.flexCount} flex containers** detected.`);
+    lines.push('');
+
+    if (l.containerWidths.length > 0) {
+      lines.push('### Container Widths');
+      lines.push('');
+      lines.push('| Max Width | Padding |');
+      lines.push('|-----------|---------|');
+      for (const c of l.containerWidths) {
+        lines.push(`| ${c.maxWidth} | ${c.padding} |`);
+      }
+      lines.push('');
+    }
+
+    if (l.gridColumns.length > 0) {
+      lines.push('### Grid Column Patterns');
+      lines.push('');
+      lines.push('| Columns | Usage Count |');
+      lines.push('|---------|-------------|');
+      for (const g of l.gridColumns) {
+        lines.push(`| ${g.columns}-column | ${g.count}x |`);
+      }
+      lines.push('');
+    }
+
+    if (l.topGrids.length > 0) {
+      lines.push('### Grid Templates');
+      lines.push('');
+      lines.push('```css');
+      for (const g of l.topGrids) {
+        lines.push(`grid-template-columns: ${g.columns};`);
+        if (g.gap !== 'normal' && g.gap !== '0px') lines.push(`gap: ${g.gap};`);
+      }
+      lines.push('```');
+      lines.push('');
+    }
+
+    if (Object.keys(l.flexDirections).length > 0) {
+      lines.push('### Flex Patterns');
+      lines.push('');
+      lines.push('| Direction/Wrap | Count |');
+      lines.push('|----------------|-------|');
+      for (const [pattern, count] of Object.entries(l.flexDirections)) {
+        lines.push(`| ${pattern} | ${count}x |`);
+      }
+      lines.push('');
+    }
+
+    if (l.gaps.length > 0) {
+      lines.push(`**Gap values:** ${l.gaps.map(g => `\`${g}\``).join(', ')}`);
+      lines.push('');
+    }
+  }
+
+  // ── Responsive ──
+  if (design.responsive) {
+    const r = design.responsive;
+    lines.push('## Responsive Design');
+    lines.push('');
+
+    if (r.viewports.length > 0) {
+      lines.push('### Viewport Snapshots');
+      lines.push('');
+      lines.push('| Viewport | Body Font | Nav Visible | Max Columns | Hamburger | Page Height |');
+      lines.push('|----------|-----------|-------------|-------------|-----------|-------------|');
+      for (const vp of r.viewports) {
+        lines.push(`| ${vp.name} (${vp.width}px) | ${vp.bodyFontSize} | ${vp.navVisible ? 'Yes' : 'No'} | ${vp.maxColumns} | ${vp.hasHamburger ? 'Yes' : 'No'} | ${vp.scrollHeight}px |`);
+      }
+      lines.push('');
+    }
+
+    if (r.changes.length > 0) {
+      lines.push('### Breakpoint Changes');
+      lines.push('');
+      for (const change of r.changes) {
+        lines.push(`**${change.breakpoint}** (${change.from} → ${change.to}):`);
+        for (const d of change.diffs) {
+          lines.push(`- ${d.property}: \`${d.from}\` → \`${d.to}\``);
+        }
+        lines.push('');
+      }
+    }
+  }
+
+  // ── Interaction States ──
+  if (design.interactions) {
+    const hasContent = design.interactions.buttons.length > 0 || design.interactions.links.length > 0 || design.interactions.inputs.length > 0;
+    if (hasContent) {
+      lines.push('## Interaction States');
+      lines.push('');
+
+      if (design.interactions.buttons.length > 0) {
+        lines.push('### Button States');
+        lines.push('');
+        for (const btn of design.interactions.buttons.slice(0, 3)) {
+          lines.push(`**"${btn.text}"**`);
+          if (Object.keys(btn.hover).length > 0) {
+            lines.push('```css');
+            lines.push('/* Hover */');
+            for (const [prop, val] of Object.entries(btn.hover)) {
+              lines.push(`${prop.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${val.from} → ${val.to};`);
+            }
+            lines.push('```');
+          }
+          if (Object.keys(btn.focus).length > 0) {
+            lines.push('```css');
+            lines.push('/* Focus */');
+            for (const [prop, val] of Object.entries(btn.focus)) {
+              lines.push(`${prop.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${val.from} → ${val.to};`);
+            }
+            lines.push('```');
+          }
+          lines.push('');
+        }
+      }
+
+      if (design.interactions.links.length > 0) {
+        lines.push('### Link Hover');
+        lines.push('');
+        const link = design.interactions.links[0];
+        lines.push('```css');
+        for (const [prop, val] of Object.entries(link.hover)) {
+          lines.push(`${prop.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${val.from} → ${val.to};`);
+        }
+        lines.push('```');
+        lines.push('');
+      }
+
+      if (design.interactions.inputs.length > 0) {
+        lines.push('### Input Focus');
+        lines.push('');
+        const input = design.interactions.inputs[0];
+        lines.push('```css');
+        for (const [prop, val] of Object.entries(input.focus)) {
+          lines.push(`${prop.replace(/([A-Z])/g, '-$1').toLowerCase()}: ${val.from} → ${val.to};`);
+        }
+        lines.push('```');
+        lines.push('');
+      }
+    }
+  }
+
   // ── Accessibility ──
   if (design.accessibility) {
     const a = design.accessibility;

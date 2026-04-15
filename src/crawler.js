@@ -203,6 +203,13 @@ async function extractPageData(page) {
         animation: cs.animation,
         display: cs.display,
         position: cs.position,
+        flexDirection: cs.flexDirection,
+        flexWrap: cs.flexWrap,
+        justifyContent: cs.justifyContent,
+        alignItems: cs.alignItems,
+        gridTemplateColumns: cs.gridTemplateColumns,
+        gridTemplateRows: cs.gridTemplateRows,
+        maxWidth: cs.maxWidth,
       });
     }
 

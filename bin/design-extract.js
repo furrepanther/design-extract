@@ -15,6 +15,10 @@ import { formatFigma } from '../src/formatters/figma.js';
 import { formatReactTheme, formatShadcnTheme } from '../src/formatters/theme.js';
 import { diffDesigns, formatDiffMarkdown, formatDiffHtml } from '../src/diff.js';
 import { saveSnapshot, getHistory, formatHistoryMarkdown } from '../src/history.js';
+import { captureResponsive } from '../src/extractors/responsive.js';
+import { captureInteractions } from '../src/extractors/interactions.js';
+import { syncDesign } from '../src/sync.js';
+import { compareBrands, formatBrandMatrix, formatBrandMatrixHtml } from '../src/multibrand.js';
 import { nameFromUrl } from '../src/utils.js';
 
 const program = new Command();
@@ -22,7 +26,7 @@ const program = new Command();
 program
   .name('designlang')
   .description('Extract the complete design language from any website')
-  .version('2.0.0');
+  .version('3.0.0');
 
 // ── Main command: extract ──────────────────────────────────────
 program
@@ -36,6 +40,9 @@ program
   .option('--depth <n>', 'number of internal pages to also crawl', parseInt, 0)
   .option('--screenshots', 'capture component screenshots')
   .option('--framework <type>', 'generate framework theme (react, shadcn)')
+  .option('--responsive', 'capture design at multiple breakpoints')
+  .option('--interactions', 'capture hover/focus/active states')
+  .option('--full', 'enable all extra captures (screenshots, responsive, interactions)')
   .option('--no-history', 'skip saving to history')
   .option('--verbose', 'show detailed progress')
   .action(async (url, opts) => {
@@ -58,9 +65,21 @@ program
         wait: opts.wait,
         dark: opts.dark,
         depth: opts.depth,
-        screenshots: opts.screenshots,
+        screenshots: opts.screenshots || opts.full,
         outDir,
       });
+
+      // Responsive capture
+      if (opts.responsive || opts.full) {
+        spinner.text = 'Capturing responsive breakpoints...';
+        design.responsive = await captureResponsive(url, { wait: opts.wait });
+      }
+
+      // Interaction state capture
+      if (opts.interactions || opts.full) {
+        spinner.text = 'Capturing interaction states...';
+        design.interactions = await captureInteractions(url, { width: opts.width, height: parseInt(opts.height) || 800, wait: opts.wait });
+      }
 
       spinner.text = 'Generating outputs...';
       mkdirSync(outDir, { recursive: true });
@@ -125,6 +144,17 @@ program
       console.log(`  ${chalk.gray('Breakpoints:')} ${design.breakpoints.length} breakpoints`);
       console.log(`  ${chalk.gray('Components:')} ${Object.keys(design.components).length} patterns detected`);
       console.log(`  ${chalk.gray('CSS Vars:')} ${Object.values(design.variables).reduce((s, v) => s + Object.keys(v).length, 0)} custom properties`);
+      if (design.layout) {
+        console.log(`  ${chalk.gray('Layout:')} ${design.layout.gridCount} grids, ${design.layout.flexCount} flex containers`);
+      }
+      if (design.responsive) {
+        console.log(`  ${chalk.gray('Responsive:')} ${design.responsive.viewports.length} viewports, ${design.responsive.changes.length} breakpoint changes`);
+      }
+      if (design.interactions) {
+        const ic = design.interactions;
+        const total = ic.buttons.length + ic.links.length + ic.inputs.length;
+        console.log(`  ${chalk.gray('Interactions:')} ${total} state changes captured`);
+      }
 
       // Accessibility summary
       if (design.accessibility) {
@@ -214,6 +244,98 @@ program
     const history = getHistory(url);
     console.log('');
     console.log(formatHistoryMarkdown(url, history));
+  });
+
+// ── Brands command (multi-site comparison) ─────────────────
+program
+  .command('brands <urls...>')
+  .description('Compare design languages across multiple brands')
+  .option('-o, --out <dir>', 'output directory', './design-brands-output')
+  .action(async (urls, opts) => {
+    console.log('');
+    console.log(chalk.bold('  designlang brands'));
+    console.log(chalk.gray(`  Comparing ${urls.length} sites`));
+    console.log('');
+
+    const spinner = ora(`Extracting ${urls.length} sites...`).start();
+
+    try {
+      const brands = await compareBrands(urls);
+
+      const outDir = resolve(opts.out);
+      mkdirSync(outDir, { recursive: true });
+
+      const md = formatBrandMatrix(brands);
+      const html = formatBrandMatrixHtml(brands);
+
+      writeFileSync(join(outDir, 'brands.md'), md, 'utf-8');
+      writeFileSync(join(outDir, 'brands.html'), html, 'utf-8');
+
+      spinner.succeed('Brand comparison complete!');
+      console.log('');
+      console.log(`  ${chalk.green('✓')} ${chalk.cyan('brands.md')} — Markdown matrix`);
+      console.log(`  ${chalk.green('✓')} ${chalk.cyan('brands.html')} — Visual matrix`);
+      console.log('');
+      console.log(chalk.gray(`  Saved to ${outDir}`));
+
+      // Quick summary
+      const valid = brands.filter(b => !b.error);
+      for (const b of valid) {
+        console.log(`  ${chalk.cyan(b.hostname)}: ${b.design.colors.all.length} colors, ${b.design.typography.families.map(f => f.name).join(', ')}, ${b.design.accessibility?.score ?? '?'}% a11y`);
+      }
+      console.log('');
+
+    } catch (err) {
+      spinner.fail('Brand comparison failed');
+      console.error(chalk.red(`\n  ${err.message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── Sync command ────────────────────────────────────────────
+program
+  .command('sync <url>')
+  .description('Sync local design tokens with a live website')
+  .option('-o, --out <dir>', 'directory with token files to update', '.')
+  .action(async (url, opts) => {
+    if (!url.startsWith('http')) url = `https://${url}`;
+
+    console.log('');
+    console.log(chalk.bold('  designlang sync'));
+    console.log(chalk.gray(`  ${url}`));
+    console.log('');
+
+    const spinner = ora('Extracting current design...').start();
+
+    try {
+      const result = await syncDesign(url, { out: resolve(opts.out) });
+
+      if (result.isFirstRun) {
+        spinner.succeed('First sync — baseline saved.');
+      } else if (result.changes.length === 0) {
+        spinner.succeed('No design changes detected.');
+      } else {
+        spinner.succeed(`${result.changes.length} design changes detected!`);
+        console.log('');
+        for (const c of result.changes) {
+          console.log(`  ${chalk.yellow('≠')} ${c.property}: ${c.from} → ${c.to}`);
+        }
+      }
+
+      if (result.updatedFiles.length > 0) {
+        console.log('');
+        console.log(chalk.bold('  Updated files:'));
+        for (const f of result.updatedFiles) {
+          console.log(`  ${chalk.green('✓')} ${chalk.cyan(f)}`);
+        }
+      }
+      console.log('');
+
+    } catch (err) {
+      spinner.fail('Sync failed');
+      console.error(chalk.red(`\n  ${err.message}\n`));
+      process.exit(1);
+    }
   });
 
 program.parse();
