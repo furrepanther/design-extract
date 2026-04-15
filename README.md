@@ -7,6 +7,7 @@
   <a href="https://www.npmjs.com/package/designlang"><img src="https://img.shields.io/npm/v/designlang?color=blue&label=npm" alt="npm version"></a>
   <a href="https://github.com/Manavarya09/design-extract/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Manavarya09/design-extract" alt="license"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/designlang" alt="node version"></a>
+  <a href="https://website-five-lime-65.vercel.app"><img src="https://img.shields.io/badge/website-live-red" alt="website"></a>
 </p>
 
 ---
@@ -127,6 +128,47 @@ designlang brands stripe.com vercel.com github.com linear.app
 
 Generates a matrix with color overlap analysis, typography comparison, spacing systems, and accessibility scores. Outputs both `brands.md` and `brands.html`.
 
+### 6. Clone Command
+
+Generate a working Next.js app with the extracted design applied:
+
+```bash
+designlang clone https://stripe.com
+cd cloned-design && npm install && npm run dev
+```
+
+One command → a running app with the site's colors, fonts, spacing, and component patterns.
+
+### 7. Design System Scoring
+
+Rate any site's design quality across 7 categories:
+
+```bash
+designlang score https://vercel.com
+```
+
+```
+  68/100  Grade: D
+
+  Color Discipline     ██████████░░░░░░░░░░ 50
+  Typography           ██████████████░░░░░░ 70
+  Spacing System       ████████████████░░░░ 80
+  Shadows              ██████████░░░░░░░░░░ 50
+  Border Radii         ████████░░░░░░░░░░░░ 40
+  Accessibility        ███████████████████░ 94
+  Tokenization         ████████████████████ 100
+```
+
+### 8. Watch Mode
+
+Monitor a site for design changes:
+
+```bash
+designlang watch https://stripe.com --interval 60
+```
+
+Checks hourly and alerts when colors, fonts, or accessibility scores change.
+
 ## All Features
 
 | Feature | Flag / Command | Description |
@@ -134,12 +176,16 @@ Generates a matrix with color overlap analysis, typography comparison, spacing s
 | Base extraction | `designlang <url>` | Colors, typography, spacing, shadows, radii, CSS vars, breakpoints, animations, components |
 | Layout system | automatic | Grid patterns, flex usage, container widths, gap values |
 | Accessibility | automatic | WCAG 2.1 contrast ratios for all fg/bg pairs |
+| Design scoring | automatic | 7-category quality rating (A-F) with actionable issues |
 | Dark mode | `--dark` | Extracts dark color scheme |
 | Multi-page | `--depth <n>` | Crawl N internal pages for site-wide tokens |
 | Screenshots | `--screenshots` | Capture buttons, cards, inputs, nav, hero, full page |
 | Responsive | `--responsive` | Crawl at 4 viewports, map breakpoint changes |
 | Interactions | `--interactions` | Capture hover/focus/active state transitions |
 | Everything | `--full` | Enable screenshots + responsive + interactions |
+| Clone | `designlang clone <url>` | Generate a working Next.js starter with extracted design |
+| Score | `designlang score <url>` | Rate design quality with visual bar chart breakdown |
+| Watch | `designlang watch <url>` | Monitor for design changes on interval |
 | Diff | `designlang diff <A> <B>` | Compare two sites (MD + HTML) |
 | Multi-brand | `designlang brands <urls...>` | N-site comparison matrix |
 | Sync | `designlang sync <url>` | Update local tokens from live site |
@@ -167,6 +213,9 @@ Options:
   --verbose               Detailed progress output
 
 Commands:
+  clone <url>             Generate a working Next.js starter from extracted design
+  score <url>             Rate design quality (7 categories, A-F, bar chart)
+  watch <url>             Monitor for design changes on interval
   diff <urlA> <urlB>      Compare two sites' design languages
   brands <urls...>        Multi-brand comparison matrix
   sync <url>              Sync local tokens with live site
@@ -203,12 +252,13 @@ Running `designlang https://vercel.com --full`:
   Shadows: 11 unique shadows
   Radii: 10 unique values
   Breakpoints: 45 breakpoints
-  Components: 4 patterns detected
+  Components: 11 types detected
   CSS Vars: 407 custom properties
   Layout: 55 grids, 492 flex containers
   Responsive: 4 viewports, 3 breakpoint changes
   Interactions: 8 state changes captured
   A11y: 94% WCAG score (7 failing pairs)
+  Design Score: 68/100 (D) — 4 issues
 ```
 
 ## How It Works
@@ -229,6 +279,10 @@ npx skills add Manavarya09/design-extract
 ```
 
 In Claude Code, use `/extract-design <url>`.
+
+## Website
+
+**[website-five-lime-65.vercel.app](https://website-five-lime-65.vercel.app)** — the brutalist product page.
 
 ## Contributing
 
