@@ -8,9 +8,10 @@ export async function captureInteractions(url, options = {}) {
   const context = await browser.newContext({ viewport: { width, height } });
   const page = await context.newPage();
 
-  await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  await page.waitForLoadState('networkidle').catch(() => {});
   if (wait > 0) await page.waitForTimeout(wait);
-  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => document.fonts.ready).catch(() => {});
 
   const results = { buttons: [], links: [], inputs: [] };
 

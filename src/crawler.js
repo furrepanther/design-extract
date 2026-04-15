@@ -14,14 +14,11 @@ export async function crawlPage(url, options = {}) {
   });
   const page = await context.newPage();
 
-  try {
-    await page.goto(url, { waitUntil: 'networkidle', timeout: 15000 });
-  } catch {
-    // Sites with websockets/long-polling never reach networkidle — fall back to load
-    await page.goto(url, { waitUntil: 'load', timeout: 30000 });
-  }
+  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  // Wait for network to settle — but don't hang on sites with persistent connections
+  await page.waitForLoadState('networkidle').catch(() => {});
   if (wait > 0) await page.waitForTimeout(wait);
-  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => document.fonts.ready).catch(() => {});
 
   const title = await page.title();
   const lightData = await extractPageData(page);
@@ -38,8 +35,9 @@ export async function crawlPage(url, options = {}) {
     const internalLinks = await discoverInternalLinks(page, url, depth);
     for (const link of internalLinks) {
       try {
-        await page.goto(link, { waitUntil: 'networkidle', timeout: 20000 });
-        await page.evaluate(() => document.fonts.ready);
+        await page.goto(link, { waitUntil: 'domcontentloaded', timeout: 20000 });
+        await page.waitForLoadState('networkidle').catch(() => {});
+        await page.evaluate(() => document.fonts.ready).catch(() => {});
         const pageData = await extractPageData(page);
         additionalPages.push({ url: link, data: pageData });
       } catch { /* skip failed pages */ }
@@ -55,8 +53,9 @@ export async function crawlPage(url, options = {}) {
       colorScheme: 'dark',
     });
     const darkPage = await darkContext.newPage();
-    await darkPage.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
-    await darkPage.evaluate(() => document.fonts.ready);
+    await darkPage.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await darkPage.waitForLoadState('networkidle').catch(() => {});
+    await darkPage.evaluate(() => document.fonts.ready).catch(() => {});
     darkData = await extractPageData(darkPage);
     await darkContext.close();
   } else {

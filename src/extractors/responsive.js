@@ -20,9 +20,10 @@ export async function captureResponsive(url, options = {}) {
     const page = await context.newPage();
 
     try {
-      await page.goto(url, { waitUntil: 'networkidle', timeout: 20000 });
+      await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 20000 });
+      await page.waitForLoadState('networkidle').catch(() => {});
       if (wait > 0) await page.waitForTimeout(wait);
-      await page.evaluate(() => document.fonts.ready);
+      await page.evaluate(() => document.fonts.ready).catch(() => {});
 
       const data = await page.evaluate(() => {
         const body = document.body;
