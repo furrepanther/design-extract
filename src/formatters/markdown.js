@@ -500,6 +500,104 @@ export function formatMarkdown(design) {
     }
   }
 
+  // ── Gradients ──
+  if (design.gradients && design.gradients.count > 0) {
+    lines.push('## Gradients');
+    lines.push('');
+    lines.push(`**${design.gradients.count} unique gradients** detected.`);
+    lines.push('');
+    lines.push('| Type | Direction | Stops | Classification |');
+    lines.push('|------|-----------|-------|----------------|');
+    for (const g of design.gradients.gradients.slice(0, 15)) {
+      lines.push(`| ${g.type} | ${g.direction || '—'} | ${g.stops.length} | ${g.classification} |`);
+    }
+    lines.push('');
+    lines.push('```css');
+    for (const g of design.gradients.gradients.slice(0, 5)) {
+      lines.push(`background: ${g.raw};`);
+    }
+    lines.push('```');
+    lines.push('');
+  }
+
+  // ── Z-Index Map ──
+  if (design.zIndex && design.zIndex.allValues.length > 0) {
+    lines.push('## Z-Index Map');
+    lines.push('');
+    lines.push(`**${design.zIndex.allValues.length} unique z-index values** across ${design.zIndex.layers.length} layers.`);
+    lines.push('');
+    if (design.zIndex.layers.length > 0) {
+      lines.push('| Layer | Range | Elements |');
+      lines.push('|-------|-------|----------|');
+      for (const l of design.zIndex.layers) {
+        const elNames = l.elements.slice(0, 3).join(', ');
+        lines.push(`| ${l.name} | ${l.range} | ${elNames} |`);
+      }
+      lines.push('');
+    }
+    if (design.zIndex.issues.length > 0) {
+      lines.push('**Issues:**');
+      for (const issue of design.zIndex.issues) {
+        lines.push(`- ${issue}`);
+      }
+      lines.push('');
+    }
+  }
+
+  // ── Icons ──
+  if (design.icons && design.icons.count > 0) {
+    lines.push('## SVG Icons');
+    lines.push('');
+    lines.push(`**${design.icons.count} unique SVG icons** detected. Dominant style: **${design.icons.dominantStyle || 'mixed'}**.`);
+    lines.push('');
+    const dist = design.icons.sizeDistribution;
+    if (dist) {
+      lines.push('| Size Class | Count |');
+      lines.push('|------------|-------|');
+      for (const [cls, count] of Object.entries(dist)) {
+        if (count > 0) lines.push(`| ${cls} | ${count} |`);
+      }
+      lines.push('');
+    }
+    if (design.icons.colorPalette.length > 0) {
+      lines.push(`**Icon colors:** ${design.icons.colorPalette.slice(0, 10).map(c => `\`${c}\``).join(', ')}`);
+      lines.push('');
+    }
+  }
+
+  // ── Font Files ──
+  if (design.fonts && design.fonts.fonts.length > 0) {
+    lines.push('## Font Files');
+    lines.push('');
+    lines.push('| Family | Source | Weights | Styles |');
+    lines.push('|--------|--------|---------|--------|');
+    for (const f of design.fonts.fonts) {
+      lines.push(`| ${f.family} | ${f.source} | ${f.weights.join(', ')} | ${f.styles.join(', ')} |`);
+    }
+    lines.push('');
+    if (design.fonts.googleFontsUrl) {
+      lines.push(`**Google Fonts URL:** \`${design.fonts.googleFontsUrl}\``);
+      lines.push('');
+    }
+  }
+
+  // ── Image Styles ──
+  if (design.images && design.images.patterns.length > 0) {
+    lines.push('## Image Style Patterns');
+    lines.push('');
+    lines.push('| Pattern | Count | Key Styles |');
+    lines.push('|---------|-------|------------|');
+    for (const p of design.images.patterns) {
+      const styles = Object.entries(p.styles || {}).map(([k, v]) => `${k}: ${v}`).join(', ');
+      lines.push(`| ${p.name} | ${p.count} | ${styles || '—'} |`);
+    }
+    lines.push('');
+    if (design.images.aspectRatios.length > 0) {
+      lines.push(`**Aspect ratios:** ${design.images.aspectRatios.slice(0, 8).map(a => `${a.ratio} (${a.count}x)`).join(', ')}`);
+      lines.push('');
+    }
+  }
+
   // ── Quick Start ──
   lines.push('## Quick Start');
   lines.push('');

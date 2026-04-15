@@ -21,6 +21,8 @@ import { syncDesign } from '../src/sync.js';
 import { compareBrands, formatBrandMatrix, formatBrandMatrixHtml } from '../src/multibrand.js';
 import { generateClone } from '../src/clone.js';
 import { watchSite } from '../src/watch.js';
+import { diffDarkMode } from '../src/darkdiff.js';
+import { applyDesign } from '../src/apply.js';
 import { nameFromUrl } from '../src/utils.js';
 
 const program = new Command();
@@ -28,7 +30,7 @@ const program = new Command();
 program
   .name('designlang')
   .description('Extract the complete design language from any website')
-  .version('4.0.1');
+  .version('5.0.0');
 
 // ── Main command: extract ──────────────────────────────────────
 program
@@ -45,6 +47,8 @@ program
   .option('--responsive', 'capture design at multiple breakpoints')
   .option('--interactions', 'capture hover/focus/active states')
   .option('--full', 'enable all extra captures (screenshots, responsive, interactions)')
+  .option('--cookie <cookies...>', 'cookies for authenticated pages (name=value)')
+  .option('--header <headers...>', 'custom headers (name:value)')
   .option('--no-history', 'skip saving to history')
   .option('--verbose', 'show detailed progress')
   .action(async (url, opts) => {
@@ -61,6 +65,16 @@ program
 
     try {
       spinner.text = `Crawling${opts.depth > 0 ? ` (depth: ${opts.depth})` : ''}...`;
+      // Parse auth options
+      const cookies = opts.cookie || [];
+      const headers = {};
+      if (opts.header) {
+        for (const h of opts.header) {
+          const [name, ...rest] = h.split(':');
+          if (name && rest.length) headers[name.trim()] = rest.join(':').trim();
+        }
+      }
+
       const design = await extractDesignLanguage(url, {
         width: opts.width,
         height: parseInt(opts.height) || 800,
@@ -69,6 +83,8 @@ program
         depth: opts.depth,
         screenshots: opts.screenshots || opts.full,
         outDir,
+        cookies: cookies.length > 0 ? cookies : undefined,
+        headers: Object.keys(headers).length > 0 ? headers : undefined,
       });
 
       // Responsive capture
@@ -161,6 +177,25 @@ program
         const s = design.score;
         const gradeColor = s.grade === 'A' ? chalk.green : s.grade === 'B' ? chalk.cyan : s.grade === 'C' ? chalk.yellow : chalk.red;
         console.log(`  ${chalk.gray('Design Score:')} ${gradeColor(`${s.overall}/100 (${s.grade})`)}${s.issues.length > 0 ? ` — ${s.issues.length} issues` : ''}`);
+      }
+
+      // New v5 extractors
+      if (design.gradients && design.gradients.count > 0) {
+        console.log(`  ${chalk.gray('Gradients:')} ${design.gradients.count} unique gradients`);
+      }
+      if (design.zIndex && design.zIndex.allValues.length > 0) {
+        console.log(`  ${chalk.gray('Z-Index:')} ${design.zIndex.allValues.length} layers${design.zIndex.issues.length > 0 ? ` (${design.zIndex.issues.length} issues)` : ''}`);
+      }
+      if (design.icons && design.icons.count > 0) {
+        console.log(`  ${chalk.gray('Icons:')} ${design.icons.count} SVG icons (${design.icons.dominantStyle || 'mixed'})`);
+      }
+      if (design.fonts && design.fonts.fonts.length > 0) {
+        const sources = design.fonts.fonts.map(f => f.source).filter((v, i, a) => a.indexOf(v) === i);
+        console.log(`  ${chalk.gray('Font Files:')} ${design.fonts.fonts.length} fonts (${sources.join(', ')})`);
+      }
+      if (design.images && design.images.patterns.length > 0) {
+        const total = design.images.patterns.reduce((s, p) => s + p.count, 0);
+        console.log(`  ${chalk.gray('Images:')} ${total} images, ${design.images.patterns.length} style patterns`);
       }
 
       // Accessibility summary
@@ -481,6 +516,46 @@ program
 
     } catch (err) {
       spinner.fail('Scoring failed');
+      console.error(chalk.red(`\n  ${err.message}\n`));
+      process.exit(1);
+    }
+  });
+
+// ── Apply command ──────────────────────────────────────────
+program
+  .command('apply <url>')
+  .description('Extract and apply design directly to your project')
+  .option('-d, --dir <path>', 'project directory', '.')
+  .option('--framework <type>', 'force framework (tailwind, shadcn, css)')
+  .option('--cookie <cookies...>', 'cookies for authenticated pages')
+  .option('--header <headers...>', 'custom headers')
+  .action(async (url, opts) => {
+    if (!url.startsWith('http')) url = `https://${url}`;
+
+    console.log('');
+    console.log(chalk.bold('  designlang apply'));
+    console.log(chalk.gray(`  ${url} → ${resolve(opts.dir)}`));
+    console.log('');
+
+    const spinner = ora('Extracting design...').start();
+
+    try {
+      const result = await applyDesign(url, {
+        dir: resolve(opts.dir),
+        framework: opts.framework,
+        cookies: opts.cookie,
+        headers: opts.header ? Object.fromEntries(opts.header.map(h => { const [k, ...v] = h.split(':'); return [k.trim(), v.join(':').trim()]; })) : undefined,
+      });
+
+      spinner.succeed(`Applied ${result.framework} design!`);
+      console.log('');
+      for (const f of result.applied) {
+        console.log(`  ${chalk.green('✓')} ${chalk.cyan(f.file)} — ${f.type}`);
+      }
+      console.log('');
+
+    } catch (err) {
+      spinner.fail('Apply failed');
       console.error(chalk.red(`\n  ${err.message}\n`));
       process.exit(1);
     }

@@ -5,7 +5,7 @@ import { join } from 'path';
 const MAX_ELEMENTS = 5000;
 
 export async function crawlPage(url, options = {}) {
-  const { width = 1280, height = 800, wait = 0, dark = false, depth = 0, screenshots = false, outDir = '', executablePath, browserArgs } = options;
+  const { width = 1280, height = 800, wait = 0, dark = false, depth = 0, screenshots = false, outDir = '', executablePath, browserArgs, cookies, headers } = options;
 
   const browser = await chromium.launch({
     headless: true,
@@ -15,7 +15,19 @@ export async function crawlPage(url, options = {}) {
   const context = await browser.newContext({
     viewport: { width, height },
     colorScheme: 'light',
+    ...(headers && { extraHTTPHeaders: headers }),
   });
+
+  // Set cookies if provided
+  if (cookies && cookies.length > 0) {
+    await context.addCookies(cookies.map(c => {
+      if (typeof c === 'string') {
+        const [name, ...rest] = c.split('=');
+        return { name, value: rest.join('='), url };
+      }
+      return c;
+    }));
+  }
   const page = await context.newPage();
 
   await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
@@ -276,6 +288,69 @@ async function extractPageData(page) {
         } catch { /* cross-origin */ }
       }
     } catch { /* no access */ }
+
+    // SVG icons
+    results.icons = [];
+    for (const svg of document.querySelectorAll('svg')) {
+      const rect = svg.getBoundingClientRect();
+      if (rect.width > 4 && rect.width < 200 && rect.height > 4 && rect.height < 200) {
+        results.icons.push({
+          svg: svg.outerHTML,
+          width: rect.width,
+          height: rect.height,
+          viewBox: svg.getAttribute('viewBox') || '',
+          classList: Array.from(svg.classList).join(' '),
+          fill: svg.getAttribute('fill') || getComputedStyle(svg).fill || '',
+          stroke: svg.getAttribute('stroke') || getComputedStyle(svg).stroke || '',
+        });
+      }
+    }
+
+    // Font data
+    results.fontData = { fontFaces: [], googleFontsLinks: [], documentFonts: [] };
+    try {
+      for (const sheet of document.styleSheets) {
+        try {
+          for (const rule of sheet.cssRules) {
+            if (rule instanceof CSSFontFaceRule) {
+              results.fontData.fontFaces.push({
+                family: rule.style.getPropertyValue('font-family').replace(/['"]/g, ''),
+                style: rule.style.getPropertyValue('font-style') || 'normal',
+                weight: rule.style.getPropertyValue('font-weight') || '400',
+                src: rule.style.getPropertyValue('src') || '',
+              });
+            }
+          }
+        } catch { /* cross-origin */ }
+      }
+    } catch {}
+    for (const link of document.querySelectorAll('link[href*="fonts.googleapis.com"]')) {
+      results.fontData.googleFontsLinks.push(link.href);
+    }
+    for (const font of document.fonts) {
+      results.fontData.documentFonts.push({ family: font.family.replace(/['"]/g, ''), style: font.style, weight: font.weight, status: font.status });
+    }
+
+    // Image data
+    results.images = [];
+    for (const img of document.querySelectorAll('img, picture img, [role="img"]')) {
+      const rect = img.getBoundingClientRect();
+      if (rect.width < 5 || rect.height < 5) continue;
+      const cs = getComputedStyle(img);
+      results.images.push({
+        tag: img.tagName.toLowerCase(),
+        src: img.src || '',
+        width: rect.width,
+        height: rect.height,
+        objectFit: cs.objectFit,
+        objectPosition: cs.objectPosition,
+        borderRadius: cs.borderRadius,
+        filter: cs.filter,
+        opacity: cs.opacity,
+        aspectRatio: cs.aspectRatio,
+        classList: Array.from(img.classList).join(' '),
+      });
+    }
 
     return results;
   }, MAX_ELEMENTS);
