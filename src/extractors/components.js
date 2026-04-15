@@ -131,7 +131,30 @@ export function extractComponents(computedStyles) {
     };
   }
 
+  // Generate CSS snippets for each component
+  for (const [type, data] of Object.entries(components)) {
+    if (data.baseStyle) {
+      const style = type === 'tables' ? { ...data.baseStyle } : data.baseStyle;
+      delete style.cellStyle;
+      data.css = styleToCss(`.${type.replace(/s$/, '')}`, style);
+    }
+  }
+
   return components;
+}
+
+function styleToCss(selector, style) {
+  const propMap = {
+    backgroundColor: 'background-color', color: 'color', fontSize: 'font-size',
+    fontWeight: 'font-weight', paddingTop: 'padding-top', paddingRight: 'padding-right',
+    paddingBottom: 'padding-bottom', paddingLeft: 'padding-left',
+    borderRadius: 'border-radius', boxShadow: 'box-shadow', borderColor: 'border-color',
+    maxWidth: 'max-width', position: 'position',
+  };
+  const lines = Object.entries(style)
+    .filter(([, v]) => v)
+    .map(([k, v]) => `  ${propMap[k] || k}: ${v};`);
+  return `${selector} {\n${lines.join('\n')}\n}`;
 }
 
 function mostCommonStyle(elements, properties) {

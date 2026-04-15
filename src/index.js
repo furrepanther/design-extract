@@ -11,6 +11,11 @@ import { extractComponents } from './extractors/components.js';
 import { extractAccessibility } from './extractors/accessibility.js';
 import { extractLayout } from './extractors/layout.js';
 import { scoreDesignSystem } from './extractors/scoring.js';
+import { extractGradients } from './extractors/gradients.js';
+import { extractZIndex } from './extractors/zindex.js';
+import { extractIcons } from './extractors/icons.js';
+import { extractFonts } from './extractors/fonts.js';
+import { extractImageStyles } from './extractors/images.js';
 
 export async function extractDesignLanguage(url, options = {}) {
   const rawData = await crawlPage(url, options);
@@ -35,8 +40,13 @@ export async function extractDesignLanguage(url, options = {}) {
     components: extractComponents(styles),
     accessibility: extractAccessibility(styles),
     layout: extractLayout(styles),
+    gradients: extractGradients(styles),
+    zIndex: extractZIndex(styles),
+    icons: rawData.light.icons ? extractIcons(rawData.light.icons) : { icons: [], count: 0 },
+    fonts: rawData.light.fontData ? extractFonts(rawData.light.fontData) : { fonts: [], systemFonts: [] },
+    images: rawData.light.images ? extractImageStyles(rawData.light.images) : { patterns: [], aspectRatios: [] },
     componentScreenshots: rawData.componentScreenshots || {},
-    score: null, // populated below
+    score: null,
   };
 
   if (rawData.dark) {
@@ -68,3 +78,5 @@ export { compareBrands, formatBrandMatrix, formatBrandMatrixHtml } from './multi
 export { generateClone } from './clone.js';
 export { scoreDesignSystem } from './extractors/scoring.js';
 export { watchSite } from './watch.js';
+export { diffDarkMode } from './darkdiff.js';
+export { applyDesign } from './apply.js';
