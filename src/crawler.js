@@ -1,9 +1,11 @@
 import { chromium } from 'playwright';
+import { mkdirSync } from 'fs';
+import { join } from 'path';
 
 const MAX_ELEMENTS = 5000;
 
 export async function crawlPage(url, options = {}) {
-  const { width = 1280, height = 800, wait = 0, dark = false } = options;
+  const { width = 1280, height = 800, wait = 0, dark = false, depth = 0, screenshots = false, outDir = '' } = options;
 
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
@@ -14,12 +16,32 @@ export async function crawlPage(url, options = {}) {
 
   await page.goto(url, { waitUntil: 'networkidle', timeout: 30000 });
   if (wait > 0) await page.waitForTimeout(wait);
-
-  // Wait for fonts to load
   await page.evaluate(() => document.fonts.ready);
 
+  const title = await page.title();
   const lightData = await extractPageData(page);
 
+  // Component screenshots
+  let componentScreenshots = {};
+  if (screenshots && outDir) {
+    componentScreenshots = await captureComponentScreenshots(page, outDir);
+  }
+
+  // Multi-page crawl: discover internal links and extract from them
+  let additionalPages = [];
+  if (depth > 0) {
+    const internalLinks = await discoverInternalLinks(page, url, depth);
+    for (const link of internalLinks) {
+      try {
+        await page.goto(link, { waitUntil: 'networkidle', timeout: 20000 });
+        await page.evaluate(() => document.fonts.ready);
+        const pageData = await extractPageData(page);
+        additionalPages.push({ url: link, data: pageData });
+      } catch { /* skip failed pages */ }
+    }
+  }
+
+  // Dark mode extraction
   let darkData = null;
   if (dark) {
     await context.close();
@@ -32,12 +54,104 @@ export async function crawlPage(url, options = {}) {
     await darkPage.evaluate(() => document.fonts.ready);
     darkData = await extractPageData(darkPage);
     await darkContext.close();
+  } else {
+    await context.close();
   }
 
-  const title = await page.title();
   await browser.close();
 
-  return { url, title, light: lightData, dark: darkData };
+  // Merge additional page data into light data
+  if (additionalPages.length > 0) {
+    lightData.computedStyles = mergeStyles(lightData.computedStyles, additionalPages);
+    for (const ap of additionalPages) {
+      Object.assign(lightData.cssVariables, ap.data.cssVariables);
+      lightData.mediaQueries.push(...ap.data.mediaQueries);
+      lightData.keyframes.push(...ap.data.keyframes);
+    }
+    // Deduplicate media queries and keyframes
+    lightData.mediaQueries = [...new Set(lightData.mediaQueries)];
+    const seenKf = new Set();
+    lightData.keyframes = lightData.keyframes.filter(kf => {
+      if (seenKf.has(kf.name)) return false;
+      seenKf.add(kf.name);
+      return true;
+    });
+  }
+
+  return {
+    url, title,
+    light: lightData,
+    dark: darkData,
+    pagesAnalyzed: 1 + additionalPages.length,
+    componentScreenshots,
+  };
+}
+
+function mergeStyles(primary, additionalPages) {
+  // Add styles from additional pages, capping total
+  const all = [...primary];
+  for (const ap of additionalPages) {
+    if (all.length >= MAX_ELEMENTS * 2) break;
+    all.push(...ap.data.computedStyles);
+  }
+  return all;
+}
+
+async function discoverInternalLinks(page, baseUrl, maxLinks) {
+  const base = new URL(baseUrl);
+  const links = await page.evaluate((hostname) => {
+    return Array.from(document.querySelectorAll('a[href]'))
+      .map(a => a.href)
+      .filter(href => {
+        try {
+          const u = new URL(href);
+          return u.hostname === hostname && !href.includes('#') && !href.match(/\.(png|jpg|jpeg|gif|svg|pdf|zip|mp4|mp3)$/i);
+        } catch { return false; }
+      });
+  }, base.hostname);
+
+  // Deduplicate and limit
+  const unique = [...new Set(links)].filter(l => l !== baseUrl);
+  return unique.slice(0, Math.min(maxLinks * 3, 15)); // crawl up to 15 pages max
+}
+
+export async function captureComponentScreenshots(page, outDir) {
+  const screenshotDir = join(outDir, 'screenshots');
+  mkdirSync(screenshotDir, { recursive: true });
+
+  const result = {};
+
+  // Find representative elements for each component type
+  const selectors = [
+    { name: 'button', selector: 'button:not(:empty), a[role="button"], [class*="btn"]:not(:empty)', label: 'Buttons' },
+    { name: 'card', selector: '[class*="card"]:not(:empty)', label: 'Cards' },
+    { name: 'input', selector: 'input[type="text"], input[type="email"], input[type="search"], textarea', label: 'Inputs' },
+    { name: 'nav', selector: 'nav, [role="navigation"]', label: 'Navigation' },
+    { name: 'hero', selector: '[class*="hero"], section:first-of-type', label: 'Hero Section' },
+  ];
+
+  for (const { name, selector, label } of selectors) {
+    try {
+      const el = await page.$(selector);
+      if (el) {
+        const box = await el.boundingBox();
+        if (box && box.width > 20 && box.height > 10) {
+          const path = join(screenshotDir, `${name}.png`);
+          await el.screenshot({ path });
+          result[name] = { path: `screenshots/${name}.png`, label };
+        }
+      }
+    } catch { /* skip if screenshot fails */ }
+  }
+
+  // Full page screenshot
+  try {
+    const fullPath = join(screenshotDir, 'full-page.png');
+    await page.screenshot({ path: fullPath, fullPage: true });
+    result.fullPage = { path: 'screenshots/full-page.png', label: 'Full Page' };
+  } catch { /* skip */ }
+
+  return result;
 }
 
 async function extractPageData(page) {
@@ -49,7 +163,6 @@ async function extractPageData(page) {
       keyframes: [],
     };
 
-    // 1. Walk all elements and collect computed styles
     const allElements = document.querySelectorAll('*');
     const elements = allElements.length > maxElements
       ? Array.from(allElements).slice(0, maxElements)
@@ -60,16 +173,11 @@ async function extractPageData(page) {
       const tag = el.tagName.toLowerCase();
       const classList = Array.from(el.classList).join(' ');
       const role = el.getAttribute('role') || '';
-
-      // Get bounding rect for area estimation
       const rect = el.getBoundingClientRect();
       const area = rect.width * rect.height;
 
       results.computedStyles.push({
-        tag,
-        classList,
-        role,
-        area,
+        tag, classList, role, area,
         color: cs.color,
         backgroundColor: cs.backgroundColor,
         backgroundImage: cs.backgroundImage,
@@ -98,9 +206,8 @@ async function extractPageData(page) {
       });
     }
 
-    // 2. Extract CSS custom properties from :root
+    // CSS custom properties
     const rootStyles = getComputedStyle(document.documentElement);
-    // Get all custom properties by iterating stylesheets
     try {
       for (const sheet of document.styleSheets) {
         try {
@@ -114,12 +221,10 @@ async function extractPageData(page) {
               }
             }
           }
-        } catch { /* cross-origin stylesheet, skip */ }
+        } catch { /* cross-origin */ }
       }
-    } catch { /* no stylesheets accessible */ }
+    } catch { /* no access */ }
 
-    // Also get any custom properties from the computed style
-    // (fallback for CSS-in-JS that sets vars on :root)
     for (let i = 0; i < rootStyles.length; i++) {
       const prop = rootStyles[i];
       if (prop.startsWith('--') && !results.cssVariables[prop]) {
@@ -127,7 +232,7 @@ async function extractPageData(page) {
       }
     }
 
-    // 3. Extract media queries from stylesheets
+    // Media queries
     try {
       for (const sheet of document.styleSheets) {
         try {
@@ -140,7 +245,7 @@ async function extractPageData(page) {
       }
     } catch { /* no access */ }
 
-    // 4. Extract keyframes
+    // Keyframes
     try {
       for (const sheet of document.styleSheets) {
         try {
