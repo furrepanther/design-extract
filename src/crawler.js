@@ -262,6 +262,31 @@ async function extractPageData(page, ignoreSelectors) {
     }
     const elements = collectElements(document, []);
 
+    function readPseudo(el, which) {
+      try {
+        const ps = getComputedStyle(el, which);
+        const content = ps.getPropertyValue('content');
+        if (!content || content === 'none' || content === 'normal') return null;
+        return {
+          content,
+          display: ps.display,
+          position: ps.position,
+          top: ps.top,
+          left: ps.left,
+          right: ps.right,
+          bottom: ps.bottom,
+          width: ps.width,
+          height: ps.height,
+          background: ps.background,
+          color: ps.color,
+          border: ps.border,
+          transform: ps.transform,
+          mask: ps.mask || ps.getPropertyValue('-webkit-mask') || '',
+          clipPath: ps.clipPath || ps.getPropertyValue('-webkit-clip-path') || '',
+        };
+      } catch { return null; }
+    }
+
     for (const el of elements) {
       const cs = getComputedStyle(el);
       const tag = el.tagName.toLowerCase();
@@ -269,6 +294,10 @@ async function extractPageData(page, ignoreSelectors) {
       const role = el.getAttribute('role') || '';
       const rect = el.getBoundingClientRect();
       const area = rect.width * rect.height;
+
+      const before = readPseudo(el, '::before');
+      const after = readPseudo(el, '::after');
+      const pseudo = (before || after) ? { before, after } : null;
 
       results.computedStyles.push({
         tag, classList, role, area,
@@ -307,6 +336,13 @@ async function extractPageData(page, ignoreSelectors) {
         gridTemplateColumns: cs.gridTemplateColumns,
         gridTemplateRows: cs.gridTemplateRows,
         maxWidth: cs.maxWidth,
+        fontVariationSettings: cs.fontVariationSettings || cs.getPropertyValue('font-variation-settings') || 'normal',
+        fontFeatureSettings: cs.fontFeatureSettings || cs.getPropertyValue('font-feature-settings') || 'normal',
+        textWrap: cs.textWrap || cs.getPropertyValue('text-wrap') || '',
+        textDecorationStyle: cs.textDecorationStyle || '',
+        textDecorationThickness: cs.textDecorationThickness || '',
+        textUnderlineOffset: cs.textUnderlineOffset || '',
+        pseudo,
       });
     }
 
@@ -365,6 +401,59 @@ async function extractPageData(page, ignoreSelectors) {
         } catch { /* cross-origin — already tracked */ }
       }
     } catch { /* no access */ }
+
+    // Container queries (@container rules) and env() usage
+    results.containerQueries = [];
+    results.envUsage = [];
+    function walkRulesForContainersAndEnv(rules) {
+      for (const rule of rules) {
+        try {
+          // Container query
+          if (typeof CSSContainerRule !== 'undefined' && rule instanceof CSSContainerRule) {
+            const inner = [];
+            try {
+              for (const inr of rule.cssRules) {
+                if (inr.selectorText) inner.push(inr.selectorText);
+              }
+            } catch {}
+            results.containerQueries.push({
+              condition: rule.conditionText || rule.containerQuery || '',
+              selectorText: inner.join(', '),
+              declarationCount: inner.length,
+            });
+          } else if (rule.cssText && rule.cssText.startsWith('@container')) {
+            results.containerQueries.push({
+              condition: rule.conditionText || '',
+              selectorText: '',
+              declarationCount: 0,
+            });
+          }
+          // env() scan on declaration text
+          if (rule.style) {
+            const css = rule.cssText || '';
+            const envMatches = css.match(/env\(\s*(safe-area-inset-[a-z]+|viewport-[a-z-]+|[a-z-]+)/gi);
+            if (envMatches) {
+              for (const m of envMatches) {
+                results.envUsage.push(m.replace(/^env\(\s*/, '').trim());
+              }
+            }
+          }
+          // Recurse into grouping rules (media, supports, container)
+          if (rule.cssRules) {
+            walkRulesForContainersAndEnv(rule.cssRules);
+          }
+        } catch { /* ignore per-rule errors */ }
+      }
+    }
+    try {
+      for (const sheet of document.styleSheets) {
+        try {
+          walkRulesForContainersAndEnv(sheet.cssRules);
+        } catch { /* cross-origin — already tracked */ }
+      }
+    } catch { /* no access */ }
+    // dedupe envUsage
+    results.envUsage = [...new Set(results.envUsage)];
 
     // Component clusters (v7): per-element features for similarity-based grouping.
     function colorToChannels(str) {
@@ -551,6 +640,17 @@ function parseCrossOriginCSS(cssText, data) {
   for (const m of cssText.matchAll(/@media\s*([^{]+)\{/g)) {
     data.mediaQueries.push(m[1].trim());
   }
+  // Container queries
+  if (!data.containerQueries) data.containerQueries = [];
+  for (const m of cssText.matchAll(/@container\s*([^{]*)\{/g)) {
+    data.containerQueries.push({ condition: m[1].trim(), selectorText: '', declarationCount: 0 });
+  }
+  // env() usage
+  if (!data.envUsage) data.envUsage = [];
+  for (const m of cssText.matchAll(/env\(\s*(safe-area-inset-[a-z]+|viewport-[a-z-]+)/gi)) {
+    data.envUsage.push(m[1]);
+  }
+  data.envUsage = [...new Set(data.envUsage)];
   // Keyframes
   for (const m of cssText.matchAll(/@keyframes\s+([\w-]+)\s*\{([\s\S]*?)\n\}/g)) {
     const steps = [];
