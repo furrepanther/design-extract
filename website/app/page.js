@@ -1,5 +1,6 @@
 import Rule from './components/Rule';
 import Marginalia from './components/Marginalia';
+import HeroExtractor from './components/HeroExtractor';
 
 export default function Home() {
   return (
@@ -76,42 +77,7 @@ export default function Home() {
           </Marginalia>
         </div>
 
-        {/* Entry form — wired in PR B. Static scaffold for now. */}
-        <form
-          style={{
-            marginTop: 'var(--r8)',
-            display: 'flex',
-            alignItems: 'stretch',
-            gap: 0,
-            maxWidth: 720,
-            border: 'var(--hair)',
-          }}
-        >
-          <label htmlFor="url" style={{ display: 'none' }}>URL</label>
-          <input
-            id="url"
-            name="url"
-            type="url"
-            placeholder="https://stripe.com"
-            defaultValue="https://stripe.com"
-            className="mono"
-            style={{
-              flex: 1,
-              padding: '18px 20px',
-              fontSize: 16,
-              color: 'var(--ink)',
-              background: 'transparent',
-              borderRight: 'var(--hair)',
-            }}
-          />
-          <button type="button" className="cta" style={{ boxShadow: 'none' }}>
-            Extract
-            <span style={{ fontFamily: 'var(--font-mono)', color: 'var(--ink-3)' }}>↵</span>
-          </button>
-        </form>
-        <p className="mono" style={{ marginTop: 14, fontSize: 11, color: 'var(--ink-3)' }}>
-          Free, rate-limited to 3 extractions per day. Private IPs rejected. No accounts.
-        </p>
+        <HeroExtractor />
       </section>
 
       {/* ── §01 DTCG BROWSER ──────────────────────────────── */}
