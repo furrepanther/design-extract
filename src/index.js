@@ -21,6 +21,7 @@ import { extractCssHealth } from './extractors/css-health.js';
 import { remediateFailingPairs } from './extractors/a11y-remediation.js';
 import { extractSemanticRegions } from './extractors/semantic-regions.js';
 import { clusterComponents } from './extractors/component-clusters.js';
+import { extractModernCss } from './extractors/modern-css.js';
 
 function safeExtract(fn, ...args) {
   try { return fn(...args); } catch { return null; }
@@ -63,6 +64,7 @@ export async function extractDesignLanguage(url, options = {}) {
     cssHealth: safeExtract(extractCssHealth, rawData.light.cssCoverage) || null,
     regions: safeExtract(extractSemanticRegions, rawData.light.sections) || [],
     componentClusters: safeExtract(clusterComponents, rawData.light.componentCandidates) || [],
+    modernCss: safeExtract(extractModernCss, rawData) || { pseudoElements: { count: 0, samples: [] }, variableFonts: { count: 0, axes: [] }, openTypeFeatures: [], textWrap: { wrap: [], decorationStyle: [], decorationThickness: [], underlineOffset: [] }, containerQueries: { count: 0, rules: [] }, envUsage: [] },
     score: null,
   };
 
