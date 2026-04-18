@@ -10,6 +10,7 @@ import { formatReactTheme, formatShadcnTheme } from '../src/formatters/theme.js'
 import { formatDtcgTokens } from '../src/formatters/dtcg-tokens.js';
 import { resolveRef } from '../src/formatters/_token-ref.js';
 import { formatIosSwiftUI } from '../src/formatters/ios-swiftui.js';
+import { formatAndroidCompose } from '../src/formatters/android-compose.js';
 
 // ── Shared mock design object ───────────────────────────────────
 
@@ -587,5 +588,27 @@ describe('formatIosSwiftUI', () => {
     const a = formatIosSwiftUI(tokens);
     const b = formatIosSwiftUI(tokens);
     assert.equal(a, b);
+  });
+});
+
+// ── formatAndroidCompose ────────────────────────────────────────
+
+describe('formatAndroidCompose', () => {
+  const tokens = formatDtcgTokens(mockDesign);
+
+  it('Theme.kt contains object DesignTokens and ActionPrimary', () => {
+    const out = formatAndroidCompose(tokens);
+    assert.ok(out['Theme.kt'].includes('object DesignTokens'));
+    assert.ok(/val ActionPrimary = Color\(0xFF0066CC\)/.test(out['Theme.kt']));
+  });
+
+  it('colors.xml has <color name="action_primary">', () => {
+    const out = formatAndroidCompose(tokens);
+    assert.ok(out['colors.xml'].includes('<color name="action_primary">#FF0066CC</color>'));
+  });
+
+  it('dimens.xml has <dimen name="spacing_s0"> with dp unit', () => {
+    const out = formatAndroidCompose(tokens);
+    assert.ok(/<dimen name="spacing_s0">\d+dp<\/dimen>/.test(out['dimens.xml']));
   });
 });
