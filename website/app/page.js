@@ -8,6 +8,7 @@ import CssHealth from './components/CssHealth';
 import A11ySlider from './components/A11ySlider';
 import RegionsComponents from './components/RegionsComponents';
 import Specimens from './components/Specimens';
+import Comparison from './components/Comparison';
 
 export default function Home() {
   return (
@@ -131,6 +132,7 @@ export default function Home() {
       {/* ── §08 COMPARISON ────────────────────────────────── */}
       <section>
         <Rule number="08" label="Compared" />
+        <Comparison />
       </section>
 
       {/* ── §09 INSTALL ───────────────────────────────────── */}
