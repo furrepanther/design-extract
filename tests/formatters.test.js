@@ -8,6 +8,8 @@ import { formatPreview } from '../src/formatters/preview.js';
 import { formatFigma } from '../src/formatters/figma.js';
 import { formatReactTheme, formatShadcnTheme } from '../src/formatters/theme.js';
 import { formatDtcgTokens } from '../src/formatters/dtcg-tokens.js';
+import { resolveRef } from '../src/formatters/_token-ref.js';
+import { formatIosSwiftUI } from '../src/formatters/ios-swiftui.js';
 
 // ── Shared mock design object ───────────────────────────────────
 
@@ -512,5 +514,78 @@ describe('formatShadcnTheme', () => {
   it('contains shadcn/ui comment', () => {
     const result = formatShadcnTheme(mockDesign);
     assert.ok(result.includes('shadcn/ui'));
+  });
+});
+
+// ── resolveRef (token reference helper) ─────────────────────────
+
+describe('resolveRef', () => {
+  const tokens = {
+    primitive: {
+      color: { brand: { primary: { $value: '#3B82F6', $type: 'color' } } },
+      spacing: { s0: { $value: '4px', $type: 'dimension' } },
+    },
+    semantic: {
+      color: {
+        action: {
+          primary: { $value: '{primitive.color.brand.primary}', $type: 'color' },
+        },
+      },
+      alias: {
+        ref: { $value: '{semantic.color.action.primary}', $type: 'color' },
+      },
+    },
+  };
+
+  it('returns the raw $value for non-reference tokens', () => {
+    assert.equal(resolveRef(tokens, 'primitive.color.brand.primary'), '#3B82F6');
+  });
+
+  it('follows one-level references', () => {
+    assert.equal(resolveRef(tokens, 'semantic.color.action.primary'), '#3B82F6');
+  });
+
+  it('follows chained references', () => {
+    assert.equal(resolveRef(tokens, 'semantic.alias.ref'), '#3B82F6');
+  });
+
+  it('returns undefined for missing paths', () => {
+    assert.equal(resolveRef(tokens, 'primitive.does.not.exist'), undefined);
+  });
+
+  it('resolves dimension tokens', () => {
+    assert.equal(resolveRef(tokens, 'primitive.spacing.s0'), '4px');
+  });
+});
+
+// ── formatIosSwiftUI ────────────────────────────────────────────
+
+describe('formatIosSwiftUI', () => {
+  const tokens = formatDtcgTokens(mockDesign);
+
+  it('emits import SwiftUI and extension Color', () => {
+    const result = formatIosSwiftUI(tokens);
+    assert.ok(result.includes('import SwiftUI'));
+    assert.ok(result.includes('extension Color'));
+  });
+
+  it('emits actionPrimary with resolved primitive hex', () => {
+    const result = formatIosSwiftUI(tokens);
+    // mockDesign primary is #0066cc → semantic.color.action.primary resolves to #0066cc
+    assert.ok(
+      /static let actionPrimary = Color\(hex: 0x0066CC\)/.test(result),
+      'expected actionPrimary with resolved hex',
+    );
+  });
+
+  it('resolves semantic references (no raw {...} strings in output)', () => {
+    const result = formatIosSwiftUI(tokens);
+    assert.ok(!result.includes('{primitive.'), 'should not leak DTCG refs');
+  });
+
+  it('is idempotent', () => {
+    const a = formatIosSwiftUI(tokens);
+    const b = formatIosSwiftUI(tokens);
+    assert.equal(a, b);
   });
 });
