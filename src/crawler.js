@@ -17,17 +17,35 @@ async function gotoWithRetry(page, url, opts, retries = 3) {
 }
 
 export async function crawlPage(url, options = {}) {
-  const { width = 1280, height = 800, wait = 0, dark = false, depth = 0, screenshots = false, outDir = '', executablePath, browserArgs, cookies, headers, ignore } = options;
+  const {
+    width = 1280, height = 800, wait = 0, dark = false, depth = 0,
+    screenshots = false, outDir = '', executablePath, browserArgs,
+    cookies, headers, ignore,
+    insecure = false,
+    userAgent,
+  } = options;
+
+  const launchArgs = [
+    ...(browserArgs || []),
+    // Common flags that help with dev environments and CI. Insecure-only flags
+    // are added below when the user opts in.
+    '--disable-dev-shm-usage',
+  ];
+  if (insecure) {
+    launchArgs.push('--ignore-certificate-errors', '--ignore-ssl-errors');
+  }
 
   const browser = await chromium.launch({
     headless: true,
     ...(executablePath && { executablePath }),
-    ...(browserArgs && { args: browserArgs }),
+    args: launchArgs,
   });
   try {
     const context = await browser.newContext({
       viewport: { width, height },
       colorScheme: 'light',
+      ignoreHTTPSErrors: insecure,
+      ...(userAgent && { userAgent }),
       ...(headers && { extraHTTPHeaders: headers }),
     });
 

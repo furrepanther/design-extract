@@ -65,7 +65,10 @@ program
   .option('--interactions', 'capture hover/focus/active states')
   .option('--full', 'enable all extra captures (screenshots, responsive, interactions)')
   .option('--cookie <cookies...>', 'cookies for authenticated pages (name=value)')
+  .option('--cookie-file <path>', 'load cookies from JSON, Playwright storageState, or Netscape cookies.txt')
   .option('--header <headers...>', 'custom headers (name:value)')
+  .option('--user-agent <ua>', 'override the browser User-Agent string')
+  .option('--insecure', 'ignore HTTPS/SSL certificate errors (self-signed, dev, proxies)')
   .option('--ignore <selectors...>', 'CSS selectors to remove before extraction')
   .option('--tokens-legacy', 'Emit pre-v7 flat token JSON (backward compat)')
   .option('--platforms <csv>', 'Additional platforms: web,ios,android,flutter,wordpress,all (web is always emitted)', 'web')
@@ -115,7 +118,19 @@ program
     try {
       spinner.text = `Crawling${merged.depth > 0 ? ` (depth: ${merged.depth})` : ''}...`;
       // Parse auth options
-      const cookies = merged.cookie || [];
+      const cliCookies = merged.cookie || [];
+      const fileCookies = [];
+      if (merged.cookieFile) {
+        try {
+          const { loadCookiesFromFile } = await import('../src/utils-cookies.js');
+          fileCookies.push(...loadCookiesFromFile(resolve(merged.cookieFile), url));
+        } catch (e) {
+          console.error(chalk.red(`\n  cookie-file load failed: ${e.message}\n`));
+          process.exit(1);
+        }
+      }
+      const { mergeCookies } = await import('../src/utils-cookies.js');
+      const cookies = mergeCookies(cliCookies, fileCookies, url);
       const headers = {};
       if (merged.header) {
         for (const h of merged.header) {
@@ -135,6 +150,8 @@ program
         ignore: merged.ignore,
         cookies: cookies.length > 0 ? cookies : undefined,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
+        insecure: merged.insecure || false,
+        userAgent: merged.userAgent,
       });
 
       // Responsive capture

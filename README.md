@@ -367,7 +367,10 @@ Options:
   --interactions          Capture hover/focus/active states
   --full                  Enable all captures
   --cookie <cookies...>   Cookies for authenticated pages (name=value)
+  --cookie-file <path>    Load cookies from JSON / storageState / Netscape cookies.txt
   --header <headers...>   Custom headers (name:value)
+  --user-agent <ua>       Override the browser User-Agent string
+  --insecure              Ignore HTTPS/SSL certificate errors (self-signed, dev, proxies)
   --framework <type>      Only generate specific theme (react, shadcn)
   --platforms <csv>       Additional platforms: web,ios,android,flutter,wordpress,all (additive)
   --emit-agent-rules      Emit Cursor / Claude Code / CLAUDE.md / agents.md rule files

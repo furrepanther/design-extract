@@ -35,6 +35,9 @@ export function mergeConfig(cliOpts, config) {
     tokensLegacy: cliOpts.tokensLegacy || config.tokensLegacy || false,
     platforms: parsePlatforms(cliOpts.platforms ?? config.platforms ?? 'web'),
     emitAgentRules: cliOpts.emitAgentRules || config.emitAgentRules || false,
+    cookieFile: cliOpts.cookieFile || config.cookieFile,
+    insecure: cliOpts.insecure || config.insecure || false,
+    userAgent: cliOpts.userAgent || config.userAgent,
   };
 }
 
