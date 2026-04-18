@@ -6,6 +6,7 @@ import McpSection from './components/McpSection';
 import PlatformTabs from './components/PlatformTabs';
 import CssHealth from './components/CssHealth';
 import A11ySlider from './components/A11ySlider';
+import RegionsComponents from './components/RegionsComponents';
 
 export default function Home() {
   return (
@@ -117,7 +118,7 @@ export default function Home() {
 
       {/* ── §06 REGIONS + COMPONENTS ──────────────────────── */}
       <section>
-        <Rule number="06" label="Regions and components" />
+        <RegionsComponents />
       </section>
 
       {/* ── §07 SPECIMENS ─────────────────────────────────── */}
