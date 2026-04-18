@@ -18,6 +18,7 @@ import { extractFonts } from './extractors/fonts.js';
 import { extractImageStyles } from './extractors/images.js';
 import { extractStackFingerprint } from './extractors/stack-fingerprint.js';
 import { extractCssHealth } from './extractors/css-health.js';
+import { remediateFailingPairs } from './extractors/a11y-remediation.js';
 
 function safeExtract(fn, ...args) {
   try { return fn(...args); } catch { return null; }
@@ -80,6 +81,26 @@ export async function extractDesignLanguage(url, options = {}) {
       variables: safeExtract(extractVariables, rawData.dark.cssVariables) || {},
     };
   }
+
+  // A11y remediation: derive failing pairs from accessibility extractor output
+  // and propose palette colors that pass the matching WCAG rule.
+  try {
+    const a11y = design.accessibility || {};
+    const palette = (design.colors?.all || []).map(c => c.hex).filter(Boolean);
+    const failingPairs = (a11y.pairs || [])
+      .filter(p => p.level === 'FAIL')
+      .map(p => ({
+        fg: p.foreground,
+        bg: p.background,
+        ratio: p.ratio,
+        rule: p.isLargeText ? 'AA-large' : 'AA-normal',
+      }));
+    design.accessibility = {
+      ...a11y,
+      failingPairs,
+      remediation: remediateFailingPairs(failingPairs, palette),
+    };
+  } catch { /* non-fatal */ }
 
   design.score = safeExtract(scoreDesignSystem, design);
   if (design.score === null) warnings.push('scoring failed');
