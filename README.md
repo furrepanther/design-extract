@@ -7,7 +7,7 @@
   <a href="https://www.npmjs.com/package/designlang"><img src="https://img.shields.io/npm/v/designlang?color=blue&label=npm" alt="npm version"></a>
   <a href="https://github.com/Manavarya09/design-extract/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Manavarya09/design-extract" alt="license"></a>
   <a href="https://nodejs.org"><img src="https://img.shields.io/node/v/designlang" alt="node version"></a>
-  <a href="https://website-five-lime-65.vercel.app"><img src="https://img.shields.io/badge/website-live-red" alt="website"></a>
+  <a href="https://design-extract-beta.vercel.app"><img src="https://img.shields.io/badge/website-live-red" alt="website"></a>
 </p>
 
 ---
@@ -453,7 +453,7 @@ In Claude Code, use `/extract-design <url>`.
 
 ## Website
 
-**[website-five-lime-65.vercel.app](https://website-five-lime-65.vercel.app)** — the brutalist product page.
+**[design-extract-beta.vercel.app](https://design-extract-beta.vercel.app)** — the brutalist product page.
 
 ## Contributing
 
