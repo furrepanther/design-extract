@@ -326,6 +326,20 @@ async function extractPageData(page, ignoreSelectors) {
       }
     } catch { /* no access */ }
 
+    // Stack fingerprint signals (v7)
+    results.stack = {
+      scripts: Array.from(document.scripts).map(s => s.src).filter(Boolean).slice(0, 50),
+      metas: Array.from(document.querySelectorAll('meta[name],meta[property]'))
+        .map(m => ({ name: m.name || m.getAttribute('property'), content: m.content }))
+        .slice(0, 50),
+      classNameSample: Array.from(document.querySelectorAll('[class]'))
+        .slice(0, 500)
+        .map(e => typeof e.className === 'string' ? e.className : '')
+        .filter(Boolean),
+      windowGlobals: ['React', 'Vue', '__NEXT_DATA__', '__NUXT__', '___gatsby', '_remixContext', 'Shopify', 'wp']
+        .filter(k => typeof window[k] !== 'undefined'),
+    };
+
     // SVG icons
     results.icons = [];
     for (const svg of document.querySelectorAll('svg')) {

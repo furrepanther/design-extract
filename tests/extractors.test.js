@@ -11,6 +11,11 @@ import { extractLayout } from '../src/extractors/layout.js';
 import { extractGradients } from '../src/extractors/gradients.js';
 import { extractZIndex } from '../src/extractors/zindex.js';
 import { scoreDesignSystem } from '../src/extractors/scoring.js';
+import { extractStackFingerprint } from '../src/extractors/stack-fingerprint.js';
+import { extractCssHealth } from '../src/extractors/css-health.js';
+import { remediateFailingPairs } from '../src/extractors/a11y-remediation.js';
+import { extractSemanticRegions } from '../src/extractors/semantic-regions.js';
+import { clusterComponents } from '../src/extractors/component-clusters.js';
 
 // ── Shared fixture defaults ─────────────────────────────────────
 
@@ -657,5 +662,131 @@ describe('scoreDesignSystem', () => {
     const noPrimary = { ...mockDesign, colors: { ...mockDesign.colors, primary: null } };
     const result = scoreDesignSystem(noPrimary);
     assert.ok(result.issues.some(i => i.includes('primary')));
+  });
+});
+
+// ── extractStackFingerprint ─────────────────────────────────────
+
+describe('extractStackFingerprint', () => {
+  it('detects Next.js from __NEXT_DATA__', () => {
+    const out = extractStackFingerprint({ windowGlobals: ['__NEXT_DATA__'], scripts: [], metas: [], classNameSample: [] });
+    assert.equal(out.framework, 'next');
+  });
+
+  it('detects Tailwind from utility-heavy classNames', () => {
+    const out = extractStackFingerprint({
+      windowGlobals: [],
+      scripts: [],
+      metas: [],
+      classNameSample: [
+        'flex items-center gap-4 text-sm text-gray-600',
+        'px-4 py-2 rounded-md bg-blue-500',
+        'grid grid-cols-3 md:grid-cols-4',
+        'flex justify-center',
+        'p-4 shadow-md',
+        'mt-4 text-lg',
+      ],
+    });
+    assert.equal(out.css.layer, 'tailwind');
+    assert.ok(out.css.tailwind.utilities.length > 0);
+  });
+
+  it('returns unknown when nothing matches', () => {
+    const out = extractStackFingerprint({ windowGlobals: [], scripts: [], metas: [], classNameSample: ['foo', 'bar'] });
+    assert.equal(out.framework, 'unknown');
+    assert.equal(out.css.layer, 'unknown');
+  });
+});
+
+// ── extractCssHealth ────────────────────────────────────────────
+
+describe('extractCssHealth', () => {
+  const payload = [{
+    url: 'https://x.com/a.css',
+    text: '.a{color:red}.a{color:red}.b{color:blue !important}.c-webkit-foo{color:x}@keyframes fade{0%{opacity:0}100%{opacity:1}\n}',
+    totalBytes: 1000,
+    ranges: [{ start: 0, end: 400 }], // 60% unused
+  }];
+
+  it('counts !important', () => {
+    const r = extractCssHealth(payload);
+    assert.equal(r.importantCount, 1);
+  });
+
+  it('counts duplicate declarations', () => {
+    const r = extractCssHealth(payload);
+    assert.ok(r.duplicates >= 1);
+  });
+
+  it('reports unused bytes', () => {
+    const r = extractCssHealth(payload);
+    assert.equal(r.unusedBytes, 600);
+    assert.equal(r.usedBytes, 400);
+  });
+
+  it('catalogs keyframes', () => {
+    const r = extractCssHealth(payload);
+    assert.ok(r.keyframes.some(k => k.name === 'fade'));
+  });
+});
+
+// ── remediateFailingPairs ───────────────────────────────────────
+
+describe('remediateFailingPairs', () => {
+  it('suggests a palette color that passes AA', () => {
+    const failing = [{ fg: '#777777', bg: '#ffffff', ratio: 3.5, rule: 'AA-normal' }];
+    const palette = ['#000000', '#222222', '#555555', '#cccccc'];
+    const out = remediateFailingPairs(failing, palette);
+    assert.equal(out.length, 1);
+    assert.ok(out[0].suggestion);
+    assert.ok(out[0].suggestion.newRatio >= 4.5);
+  });
+
+  it('returns null suggestion when no palette color passes', () => {
+    const failing = [{ fg: '#eee', bg: '#fff', ratio: 1.1, rule: 'AA-normal' }];
+    const palette = ['#dedede'];
+    const out = remediateFailingPairs(failing, palette);
+    assert.equal(out[0].suggestion, null);
+  });
+});
+
+// ── extractSemanticRegions ──────────────────────────────────────
+
+describe('extractSemanticRegions', () => {
+  it('labels header as nav', () => {
+    const out = extractSemanticRegions([{ tag: 'header', role: '', className: '', id: '', text: 'Home About', headings: [], buttonCount: 3, cardCount: 0, bounds: { x: 0, y: 0, w: 1280, h: 80 } }]);
+    assert.equal(out[0].role, 'nav');
+  });
+
+  it('labels section with CTA + heading as hero', () => {
+    const out = extractSemanticRegions([{ tag: 'section', role: '', className: 'hero', id: '', text: 'Welcome', headings: ['Build better'], buttonCount: 2, cardCount: 0, bounds: { x: 0, y: 80, w: 1280, h: 600 } }]);
+    assert.equal(out[0].role, 'hero');
+  });
+
+  it('labels pricing based on cards + keyword', () => {
+    const out = extractSemanticRegions([{ tag: 'section', role: '', className: '', id: '', text: 'Basic $9/mo Pro $29/mo Team $99/mo', headings: ['Pricing'], buttonCount: 3, cardCount: 3, bounds: { x: 0, y: 0, w: 1280, h: 400 } }]);
+    assert.equal(out[0].role, 'pricing');
+  });
+});
+
+// ── clusterComponents ───────────────────────────────────────────
+
+describe('clusterComponents', () => {
+  it('collapses identical instances into one entry', () => {
+    const els = Array.from({ length: 5 }, () => ({ kind: 'button', structuralHash: 'button>span', styleVector: [16, 8, 0, 0], css: { bg: '#f00' } }));
+    const out = clusterComponents(els);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].instanceCount, 5);
+  });
+
+  it('separates variants with different style vectors', () => {
+    const els = [
+      { kind: 'button', structuralHash: 'button>span', styleVector: [16, 8, 0, 0], css: { bg: '#f00' } },
+      { kind: 'button', structuralHash: 'button>span', styleVector: [16, 8, 0, 0], css: { bg: '#f00' } },
+      { kind: 'button', structuralHash: 'button>span', styleVector: [0, 0, 16, 8], css: { bg: '#0f0' } },
+    ];
+    const out = clusterComponents(els);
+    assert.equal(out.length, 1);
+    assert.equal(out[0].variants.length, 2);
   });
 });
