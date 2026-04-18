@@ -3,6 +3,7 @@ import Marginalia from './components/Marginalia';
 import HeroExtractor from './components/HeroExtractor';
 import TokenBrowser from './components/TokenBrowser';
 import McpSection from './components/McpSection';
+import PlatformTabs from './components/PlatformTabs';
 
 export default function Home() {
   return (
@@ -99,14 +100,7 @@ export default function Home() {
       {/* ── §03 MULTI-PLATFORM ────────────────────────────── */}
       <section>
         <Rule number="03" label="Multi-platform emitters" />
-        <div style={{ padding: 'var(--r6) 0' }}>
-          <h2 className="display">One token. Five languages.</h2>
-          <p className="prose" style={{ marginTop: 'var(--r4)', fontSize: 18 }}>
-            <code className="mono">--platforms all</code> writes SwiftUI, Compose,
-            Flutter, WordPress, plus the existing web outputs. Interactive tabs
-            in the next pass.
-          </p>
-        </div>
+        <PlatformTabs />
       </section>
 
       {/* ── §04 HEALTH ────────────────────────────────────── */}
