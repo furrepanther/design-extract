@@ -73,7 +73,26 @@ export function scoreDesignSystem(design) {
     issues.push(`${design.accessibility.failCount} WCAG contrast failures`);
   }
 
-  // 7. CSS variable usage (0-100)
+  // 7. CSS health (0-100) — additive; does not affect existing weights.
+  if (design.cssHealth) {
+    const ch = design.cssHealth;
+    let h = 100;
+    if (ch.unusedPercent >= 70) h -= 30;
+    else if (ch.unusedPercent >= 50) h -= 20;
+    else if (ch.unusedPercent >= 30) h -= 10;
+    if (ch.importantCount >= 20) h -= 20;
+    else if (ch.importantCount >= 5) h -= 10;
+    else if (ch.importantCount >= 1) h -= 5;
+    if (ch.duplicates >= 20) h -= 15;
+    else if (ch.duplicates >= 5) h -= 8;
+    else if (ch.duplicates >= 1) h -= 3;
+    scores.cssHealth = Math.max(0, h);
+    if (ch.importantCount >= 5) issues.push(`${ch.importantCount} !important rules — prefer specificity over overrides`);
+    if (ch.unusedPercent >= 50) issues.push(`${ch.unusedPercent}% of CSS is unused — consider purging`);
+    if (ch.duplicates >= 5) issues.push(`${ch.duplicates} duplicate CSS declarations`);
+  }
+
+  // 8. CSS variable usage (0-100)
   const varCount = Object.values(design.variables).reduce((s, v) => s + Object.keys(v).length, 0);
   if (varCount >= 20) scores.tokenization = 100;
   else if (varCount >= 10) scores.tokenization = 75;

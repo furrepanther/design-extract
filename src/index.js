@@ -17,6 +17,7 @@ import { extractIcons } from './extractors/icons.js';
 import { extractFonts } from './extractors/fonts.js';
 import { extractImageStyles } from './extractors/images.js';
 import { extractStackFingerprint } from './extractors/stack-fingerprint.js';
+import { extractCssHealth } from './extractors/css-health.js';
 
 function safeExtract(fn, ...args) {
   try { return fn(...args); } catch { return null; }
@@ -56,6 +57,7 @@ export async function extractDesignLanguage(url, options = {}) {
     images: rawData.light.images ? (safeExtract(extractImageStyles, rawData.light.images) || { patterns: [], aspectRatios: [] }) : { patterns: [], aspectRatios: [] },
     componentScreenshots: rawData.componentScreenshots || {},
     stack: safeExtract(extractStackFingerprint, rawData.light.stack) || { framework: 'unknown', css: { layer: 'unknown', tailwind: null }, analytics: [], detectedFrom: { globalCount: 0, scriptCount: 0, classSampleSize: 0 } },
+    cssHealth: safeExtract(extractCssHealth, rawData.light.cssCoverage) || null,
     score: null,
   };
 

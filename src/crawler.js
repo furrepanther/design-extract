@@ -43,14 +43,36 @@ export async function crawlPage(url, options = {}) {
     }
     const page = await context.newPage();
 
+    // Start CSS coverage for css-health audit. Not supported on all targets —
+    // fail gracefully and set empty coverage if the API is unavailable.
+    let cssCoverageAvailable = true;
+    try {
+      await page.coverage.startCSSCoverage();
+    } catch { cssCoverageAvailable = false; }
+
     await gotoWithRetry(page, url, { waitUntil: 'domcontentloaded', timeout: 30000 });
     // Wait for network to settle — but don't hang on sites with persistent connections
     await page.waitForLoadState('networkidle').catch(() => {});
     if (wait > 0) await page.waitForTimeout(wait);
     await page.evaluate(() => document.fonts.ready).catch(() => {});
 
+    // Capture CSS coverage after the page has settled.
+    let cssCoverage = [];
+    if (cssCoverageAvailable) {
+      try {
+        const raw = await page.coverage.stopCSSCoverage();
+        cssCoverage = raw.map(c => ({
+          url: c.url,
+          text: c.text,
+          totalBytes: (c.text || '').length,
+          ranges: c.ranges || [],
+        }));
+      } catch { cssCoverage = []; }
+    }
+
     const title = await page.title();
     const lightData = await extractPageData(page, ignore);
+    lightData.cssCoverage = cssCoverage;
 
     // Component screenshots
     let componentScreenshots = {};
