@@ -20,6 +20,7 @@ import { formatAndroidCompose } from '../src/formatters/android-compose.js';
 import { formatFlutterDart } from '../src/formatters/flutter-dart.js';
 import { formatVueTheme } from '../src/formatters/vue-theme.js';
 import { formatSvelteTheme } from '../src/formatters/svelte-theme.js';
+import { formatAgentRules } from '../src/formatters/agent-rules.js';
 import { loadConfig, mergeConfig } from '../src/config.js';
 import { diffDesigns, formatDiffMarkdown, formatDiffHtml } from '../src/diff.js';
 import { saveSnapshot, getHistory, formatHistoryMarkdown } from '../src/history.js';
@@ -68,6 +69,7 @@ program
   .option('--ignore <selectors...>', 'CSS selectors to remove before extraction')
   .option('--tokens-legacy', 'Emit pre-v7 flat token JSON (backward compat)')
   .option('--platforms <csv>', 'Additional platforms: web,ios,android,flutter,wordpress,all (web is always emitted)', 'web')
+  .option('--emit-agent-rules', 'Emit Cursor/Claude Code/generic agent rules')
   .option('--json', 'output raw JSON to stdout (for CI/CD)')
   .option('--json-pretty', 'output formatted JSON to stdout')
   .option('--no-history', 'skip saving to history')
@@ -184,6 +186,17 @@ program
       // WordPress theme (always generated)
       files.push({ name: `${prefix}-wordpress-theme.json`, content: formatWordPress(design), label: 'WordPress Theme' });
 
+      // MCP companion — the subset of `design` the MCP server serves when a
+      // user runs `designlang mcp --output-dir <dir>` later.
+      const mcpPayload = {
+        colors: { all: design.colors?.all || [] },
+        regions: design.regions || [],
+        componentClusters: design.componentClusters || [],
+        accessibility: { remediation: design.accessibility?.remediation || [] },
+        cssHealth: design.cssHealth || null,
+      };
+      files.push({ name: `${prefix}-mcp.json`, content: JSON.stringify(mcpPayload, null, 2), label: 'MCP companion' });
+
       for (const file of files) {
         writeFileSync(join(outDir, file.name), file.content, 'utf-8');
       }
@@ -225,6 +238,17 @@ program
           mkdirSync(join(p, '..'), { recursive: true });
           writeFileSync(p, out[name], 'utf-8');
           platformFiles.push({ path: p, label: `WordPress (${name})` });
+        }
+      }
+
+      // Agent rules (opt-in, also enabled by --full)
+      if (merged.emitAgentRules || merged.full) {
+        const agentFiles = formatAgentRules({ design, tokens: dtcgTokens, url });
+        for (const rel of Object.keys(agentFiles)) {
+          const p = join(outDir, rel);
+          mkdirSync(join(p, '..'), { recursive: true });
+          writeFileSync(p, agentFiles[rel], 'utf-8');
+          platformFiles.push({ path: p, label: `Agent rules (${rel})` });
         }
       }
 
@@ -735,6 +759,16 @@ program
       process.stderr.write(`Error: ${err.message}\n`);
       process.exit(1);
     }
+  });
+
+// ── MCP server command ─────────────────────────────────────
+program
+  .command('mcp')
+  .description('Launch designlang MCP server over stdio (exposes latest extraction as resources + tools)')
+  .option('--output-dir <path>', 'Source extraction directory', './design-extract-output')
+  .action(async (opts) => {
+    const { run } = await import('../src/mcp/server.js');
+    await run(opts);
   });
 
 program.parse();
