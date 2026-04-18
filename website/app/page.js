@@ -4,6 +4,7 @@ import HeroExtractor from './components/HeroExtractor';
 import TokenBrowser from './components/TokenBrowser';
 import McpSection from './components/McpSection';
 import PlatformTabs from './components/PlatformTabs';
+import CssHealth from './components/CssHealth';
 
 export default function Home() {
   return (
@@ -105,7 +106,7 @@ export default function Home() {
 
       {/* ── §04 HEALTH ────────────────────────────────────── */}
       <section>
-        <Rule number="04" label="CSS health audit" />
+        <CssHealth />
       </section>
 
       {/* ── §05 REMEDIATION ───────────────────────────────── */}
