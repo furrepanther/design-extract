@@ -11,6 +11,7 @@ import { formatDtcgTokens } from '../src/formatters/dtcg-tokens.js';
 import { resolveRef } from '../src/formatters/_token-ref.js';
 import { formatIosSwiftUI } from '../src/formatters/ios-swiftui.js';
 import { formatAndroidCompose } from '../src/formatters/android-compose.js';
+import { formatFlutterDart } from '../src/formatters/flutter-dart.js';
 
 // ── Shared mock design object ───────────────────────────────────
 
@@ -610,5 +611,24 @@ describe('formatAndroidCompose', () => {
   it('dimens.xml has <dimen name="spacing_s0"> with dp unit', () => {
     const out = formatAndroidCompose(tokens);
     assert.ok(/<dimen name="spacing_s0">\d+dp<\/dimen>/.test(out['dimens.xml']));
+  });
+});
+
+// ── formatFlutterDart ───────────────────────────────────────────
+
+describe('formatFlutterDart', () => {
+  const tokens = formatDtcgTokens(mockDesign);
+
+  it('contains class DesignTokens', () => {
+    const out = formatFlutterDart(tokens);
+    assert.ok(out.includes('class DesignTokens'));
+  });
+
+  it('emits actionPrimary with resolved ARGB hex', () => {
+    const out = formatFlutterDart(tokens);
+    assert.ok(
+      /static const Color actionPrimary = Color\(0xFF0066CC\);/.test(out),
+      'expected actionPrimary with resolved hex',
+    );
   });
 });
