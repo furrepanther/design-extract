@@ -21,6 +21,7 @@ import { formatFlutterDart } from '../src/formatters/flutter-dart.js';
 import { formatVueTheme } from '../src/formatters/vue-theme.js';
 import { formatSvelteTheme } from '../src/formatters/svelte-theme.js';
 import { formatAgentRules } from '../src/formatters/agent-rules.js';
+import { reconcileRoutes, formatRoutesReport } from '../src/formatters/routes-reconciliation.js';
 import { loadConfig, mergeConfig } from '../src/config.js';
 import { diffDesigns, formatDiffMarkdown, formatDiffHtml } from '../src/diff.js';
 import { saveSnapshot, getHistory, formatHistoryMarkdown } from '../src/history.js';
@@ -63,9 +64,13 @@ program
   .option('--framework <type>', 'generate framework theme (react, shadcn, vue, svelte)')
   .option('--responsive', 'capture design at multiple breakpoints')
   .option('--interactions', 'capture hover/focus/active states')
-  .option('--full', 'enable all extra captures (screenshots, responsive, interactions)')
+  .option('--deep-interact', 'auto-interact pass: scroll, open menus/modals/accordions, hover CTAs (implies --interactions)')
+  .option('--full', 'enable all extra captures (screenshots, responsive, interactions, deep-interact)')
   .option('--cookie <cookies...>', 'cookies for authenticated pages (name=value)')
+  .option('--cookie-file <path>', 'load cookies from JSON, Playwright storageState, or Netscape cookies.txt')
   .option('--header <headers...>', 'custom headers (name:value)')
+  .option('--user-agent <ua>', 'override the browser User-Agent string')
+  .option('--insecure', 'ignore HTTPS/SSL certificate errors (self-signed, dev, proxies)')
   .option('--ignore <selectors...>', 'CSS selectors to remove before extraction')
   .option('--tokens-legacy', 'Emit pre-v7 flat token JSON (backward compat)')
   .option('--platforms <csv>', 'Additional platforms: web,ios,android,flutter,wordpress,all (web is always emitted)', 'web')
@@ -115,7 +120,19 @@ program
     try {
       spinner.text = `Crawling${merged.depth > 0 ? ` (depth: ${merged.depth})` : ''}...`;
       // Parse auth options
-      const cookies = merged.cookie || [];
+      const cliCookies = merged.cookie || [];
+      const fileCookies = [];
+      if (merged.cookieFile) {
+        try {
+          const { loadCookiesFromFile } = await import('../src/utils-cookies.js');
+          fileCookies.push(...loadCookiesFromFile(resolve(merged.cookieFile), url));
+        } catch (e) {
+          console.error(chalk.red(`\n  cookie-file load failed: ${e.message}\n`));
+          process.exit(1);
+        }
+      }
+      const { mergeCookies } = await import('../src/utils-cookies.js');
+      const cookies = mergeCookies(cliCookies, fileCookies, url);
       const headers = {};
       if (merged.header) {
         for (const h of merged.header) {
@@ -135,6 +152,9 @@ program
         ignore: merged.ignore,
         cookies: cookies.length > 0 ? cookies : undefined,
         headers: Object.keys(headers).length > 0 ? headers : undefined,
+        insecure: merged.insecure || false,
+        userAgent: merged.userAgent,
+        deepInteract: merged.deepInteract || merged.full,
       });
 
       // Responsive capture
@@ -239,6 +259,25 @@ program
           writeFileSync(p, out[name], 'utf-8');
           platformFiles.push({ path: p, label: `WordPress (${name})` });
         }
+      }
+
+      // Multi-route token reconciliation (Tier 2). Only when --depth >= 1 and
+      // the crawler actually returned per-route token data.
+      if (merged.depth >= 1 && Array.isArray(design.routes) && design.routes.length > 0) {
+        const reconciled = reconcileRoutes(design.routes);
+        const sharedPath = join(outDir, `${prefix}-tokens-shared.json`);
+        writeFileSync(sharedPath, JSON.stringify(reconciled.shared, null, 2), 'utf-8');
+        platformFiles.push({ path: sharedPath, label: 'Shared tokens (multi-route)' });
+        const routesDir = join(outDir, `${prefix}-tokens-routes`);
+        mkdirSync(routesDir, { recursive: true });
+        for (const [slug, entry] of Object.entries(reconciled.perRoute)) {
+          const rp = join(routesDir, `${slug}.json`);
+          writeFileSync(rp, JSON.stringify({ url: entry.url, path: entry.path, added: entry.added, changed: entry.changed }, null, 2), 'utf-8');
+          platformFiles.push({ path: rp, label: `Route tokens (${slug})` });
+        }
+        const reportPath = join(outDir, `${prefix}-routes-report.md`);
+        writeFileSync(reportPath, formatRoutesReport(reconciled), 'utf-8');
+        platformFiles.push({ path: reportPath, label: 'Routes report (markdown)' });
       }
 
       // Agent rules (opt-in, also enabled by --full)

@@ -21,6 +21,11 @@ import { extractCssHealth } from './extractors/css-health.js';
 import { remediateFailingPairs } from './extractors/a11y-remediation.js';
 import { extractSemanticRegions } from './extractors/semantic-regions.js';
 import { clusterComponents } from './extractors/component-clusters.js';
+import { extractModernCss } from './extractors/modern-css.js';
+import { extractWideGamut } from './extractors/wide-gamut.js';
+import { extractTokenSources } from './extractors/token-sources.js';
+import { extractInteractionStates } from './extractors/interaction-states.js';
+import { formatDtcgTokens } from './formatters/dtcg-tokens.js';
 
 function safeExtract(fn, ...args) {
   try { return fn(...args); } catch { return null; }
@@ -30,6 +35,7 @@ export async function extractDesignLanguage(url, options = {}) {
   const rawData = await crawlPage(url, {
     ...options,
     ignore: options.ignore,
+    deepInteract: options.deepInteract,
   });
   const styles = rawData.light.computedStyles;
   const warnings = [];
@@ -63,6 +69,10 @@ export async function extractDesignLanguage(url, options = {}) {
     cssHealth: safeExtract(extractCssHealth, rawData.light.cssCoverage) || null,
     regions: safeExtract(extractSemanticRegions, rawData.light.sections) || [],
     componentClusters: safeExtract(clusterComponents, rawData.light.componentCandidates) || [],
+    modernCss: safeExtract(extractModernCss, rawData) || { pseudoElements: { count: 0, samples: [] }, variableFonts: { count: 0, axes: [] }, openTypeFeatures: [], textWrap: { wrap: [], decorationStyle: [], decorationThickness: [], underlineOffset: [] }, containerQueries: { count: 0, rules: [] }, envUsage: [] },
+    wideGamut: safeExtract(extractWideGamut, rawData.light.modernColors || []) || { oklch: { count: 0, samples: [] }, oklab: { count: 0, samples: [] }, colorMix: { count: 0, samples: [] }, lightDark: { count: 0, samples: [] }, displayP3: { count: 0, samples: [] }, rec2020: { count: 0, samples: [] }, totalCount: 0 },
+    tokenSources: [],
+    interactionStates: safeExtract(extractInteractionStates, rawData.interactState || rawData.light.interactState) || { scrollSettled: false, menusOpened: 0, hover: { sampled: 0, changed: 0, deltas: [] }, accordionsOpened: 0, modals: [] },
     score: null,
   };
 
@@ -105,6 +115,25 @@ export async function extractDesignLanguage(url, options = {}) {
       remediation: remediateFailingPairs(failingPairs, palette),
     };
   } catch { /* non-fatal */ }
+
+  design.tokenSources = safeExtract(extractTokenSources, design, styles) || [];
+
+  // Per-route token extraction (Tier 2 multi-page reconciliation).
+  if (Array.isArray(rawData.routes) && rawData.routes.length > 0) {
+    design.routes = rawData.routes.map(r => {
+      const rStyles = r.computedStylesSample || [];
+      const rDesign = {
+        meta: { url: r.url },
+        colors: safeExtract(extractColors, rStyles) || { all: [], neutrals: [], backgrounds: [], text: [], gradients: [] },
+        typography: safeExtract(extractTypography, rStyles) || { families: [], scale: [] },
+        spacing: safeExtract(extractSpacing, rStyles) || { scale: [], base: null },
+        shadows: safeExtract(extractShadows, rStyles) || { values: [] },
+        borders: safeExtract(extractBorders, rStyles) || { radii: [] },
+      };
+      const tokens = safeExtract(formatDtcgTokens, rDesign) || { primitive: {}, semantic: {} };
+      return { url: r.url, path: r.path, tokens };
+    });
+  }
 
   design.score = safeExtract(scoreDesignSystem, design);
   if (design.score === null) warnings.push('scoring failed');

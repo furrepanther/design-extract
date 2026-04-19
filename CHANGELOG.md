@@ -1,5 +1,34 @@
 # Changelog
 
+## [7.2.0] — 2026-04-19
+
+### Added
+
+- **Modern CSS surfacing (Tier 1a)** — crawler now captures pseudo-elements, variable-font axes (`font-variation-settings`), `@container` queries, and `env()` usage. Surfaced on `design.modernCss`. (#33)
+- **Wide-gamut color + CSS source attribution (Tier 1b)** — `oklch()`, `oklab()`, `color-mix()`, `light-dark()`, Display P3, and Rec2020 references are collected on `design.wideGamut`. A new `design.tokenSources` maps each extracted token to the stylesheet URL it first appeared in. (#34)
+- **Auto-interact pass (Tier 2)** — new `--deep-interact` flag (implied by `--full`) runs an interaction pass before extraction: full-page scroll in 4 steps, menu/dropdown opens, hover snapshots for the first batch of buttons/links with computed-style diffs, accordion clicks, and first-match modal trigger. Results populate `design.interactionStates` (hover deltas, menu/modal snapshots). Every step is wrapped in try/catch with per-step timeouts so interaction failures never kill the crawl.
+- **Multi-page token reconciliation (Tier 2)** — when `--depth >= 1` the extractor now emits three new artifacts alongside the merged baseline: `*-tokens-shared.json` (tokens shared across every route), `*-tokens-routes/<slug>.json` (per-route `added` and `changed` deltas), and `*-routes-report.md` (readable summary). Slugs are derived from the route path (`/` → `index`) with automatic collision handling.
+
+### Changed
+
+- `--full` now also enables `--deep-interact`.
+- `--depth <n>` description updated to mention the new reconciliation outputs.
+
+## [7.1.0] — 2026-04-19
+
+### Added
+
+- **Cookie file support** — `--cookie-file <path>` loads cookies from a JSON array, a Playwright `storageState.json`, or a Netscape `cookies.txt` (browser extensions, curl exports). The new loader lives in `src/utils-cookies.js` and merges cleanly with the existing `--cookie name=value` flag.
+- **`--insecure`** — ignores HTTPS/SSL certificate errors. Useful for self-signed dev servers, internal staging environments behind corporate proxies, and local extraction through MITM tools. Passes `ignoreHTTPSErrors: true` to the Playwright context plus the matching Chromium launch flags.
+- **`--user-agent <ua>`** — override the browser User-Agent string for extraction.
+- **Chrome extension** — `chrome-extension/` ships a Manifest v3 popup that hands the current tab off to [designlang.manavaryasingh.com](https://designlang.manavaryasingh.com) with the URL prefilled. Also emits a "Copy CLI" button that drops `npx designlang <url>` into the clipboard. Developer-mode install for now; Chrome Web Store listing pending.
+- **Website URL query parameter** — the extractor input on the hosted site now honours `?url=<encoded>` so the Chrome extension (and any deep link) can prefill.
+- **CONTRIBUTING**: "Good first issues" and "Credits" sections.
+
+### Thanks
+
+- A developer from China opened a conversation proposing cookie-file handling, SSL bypass, and a Chrome packaging story — this release ships all three.
+
 ## [7.0.0] — 2026-04-18
 
 ### Breaking

@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Marginalia from './Marginalia';
 
 const STAGE_LABEL = {
@@ -33,6 +33,24 @@ export default function HeroExtractor() {
   const [downloadBusy, setDownloadBusy] = useState(false);
   const [copied, setCopied] = useState(false);
   const inputRef = useRef(null);
+
+  // Accept ?url= query param (Chrome extension handoff, deep links). Only
+  // applied once on mount; the extension prefills the input and the user still
+  // controls submission.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const incoming = params.get('url');
+    if (!incoming || !inputRef.current) return;
+    try {
+      const parsed = new URL(incoming);
+      if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+        inputRef.current.value = parsed.toString();
+      }
+    } catch {
+      // Ignore malformed URLs silently — user still sees the default placeholder.
+    }
+  }, []);
 
   const reset = useCallback(() => {
     setStage(null);

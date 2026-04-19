@@ -27,7 +27,8 @@ export function mergeConfig(cliOpts, config) {
     screenshots: cliOpts.screenshots || config.screenshots || false,
     framework: cliOpts.framework || config.framework,
     responsive: cliOpts.responsive || config.responsive || false,
-    interactions: cliOpts.interactions || config.interactions || false,
+    interactions: cliOpts.interactions || cliOpts.deepInteract || config.interactions || false,
+    deepInteract: cliOpts.deepInteract || config.deepInteract || false,
     full: cliOpts.full || config.full || false,
     cookie: cliOpts.cookie || config.cookies,
     header: cliOpts.header || config.headers,
@@ -35,6 +36,9 @@ export function mergeConfig(cliOpts, config) {
     tokensLegacy: cliOpts.tokensLegacy || config.tokensLegacy || false,
     platforms: parsePlatforms(cliOpts.platforms ?? config.platforms ?? 'web'),
     emitAgentRules: cliOpts.emitAgentRules || config.emitAgentRules || false,
+    cookieFile: cliOpts.cookieFile || config.cookieFile,
+    insecure: cliOpts.insecure || config.insecure || false,
+    userAgent: cliOpts.userAgent || config.userAgent,
   };
 }
 
